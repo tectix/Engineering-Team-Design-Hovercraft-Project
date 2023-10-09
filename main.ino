@@ -1,6 +1,7 @@
 #include <Wire.h>
 #include <MPU6050.h>
 #include <Servo.h>
+#define LED_PIN PB5
 MPU6050 mpu;
 
 
@@ -10,8 +11,8 @@ int servo_pin = 6;
 unsigned long timer = 0;
 unsigned long printTimer = 0;
 float timeStep = 0.01; // Read data every 10 milliseconds
-unsigned long printInterval = 500; // Print data every 1000 milliseconds (1 second)
-
+unsigned long printInterval = 1000; // Print data every 1000 milliseconds (1 second)
+long dutyCycle = 0;
 // Pitch, Roll, and Yaw values
 float pitch = 0;
 float roll = 0;
@@ -19,7 +20,7 @@ float yaw = 0;
 
 
 //Calibrating accelerations based on trials
-float xAccCalib = -0.01;
+float xAccCalib = -0.00;
 float yAccCalib =0.0;
 float zAccCalib = -0.06;
 float pitchCalib = -0.06;
@@ -52,6 +53,9 @@ float lsbSensitivity = MPU6050_SENS_FOR_RANGE_2;
 void setup() 
 {
   sg90.attach(servo_pin);
+  initLED();
+  initPWM(dutyCycle);
+  sei();
   Serial.begin(115200);
 
   // Initialize MPU6050
@@ -62,11 +66,9 @@ void setup()
   }
   
   // Calibrate gyroscope. The calibration must be at rest.
-  // If you don't want calibrate, comment this line.
   mpu.calibrateGyro();
 
   // Set threshold sensitivity. Default 3.
-  // If you don't want to use threshold, comment this line or set 0.
   mpu.setThreshold(3);
 }
 
@@ -84,13 +86,18 @@ void loop()
   pitch = pitch + normGyro.YAxis * timeStep;
   roll = roll + normGyro.XAxis * timeStep;
   yaw = yaw + normGyro.ZAxis * timeStep;
-  
+  if(abs(yaw) <=70.0 ){
+  controlLED(0);
   int servoMotion = constrain(yaw + 90, 0, 180);
-  sg90.write(servoMotion);
+  sg90.write(servoMotion);}
+  else{
+    controlLED(1);
+  }
   // Calculate linear accelerations
   float linearAccelX = normAccel.XAxis /lsbSensitivity +xAccCalib;
   float linearAccelY = normAccel.YAxis /lsbSensitivity + yAccCalib;
   float linearAccelZ = normAccel.ZAxis /lsbSensitivity +zAccCalib; 
+  controlPwm(linearAccelX);
 
   // Check if it's time to print the values (once every second)
   if (millis() - printTimer >= printInterval)
@@ -114,4 +121,53 @@ void loop()
 
   // Wait to complete the full timeStep period
   delay((timeStep*1000) - (millis() - timer));
+}
+void initLED() {
+    // Set LED pin as output
+    DDRB |= (1 << LED_PIN);
+}
+
+void initPWM(double dC){
+  DDRB = (1 << PORTB3); // LED BOARD
+  // initialize TCCR2 as: fast pwm mode (p.130) --> mode 3, inverting mode
+  TCCR2A = (1 << COM2A1) | (1 << WGM20) | (1 << WGM21);
+  TIMSK2 = (1 << TOIE2);
+  // Set duty cycle
+  OCR2A = (dC/100.0)*255.0;
+  // Divides the outputted timer clock frequency by the number of clock select bits
+  TCCR2B |= (1<<CS21) | (1<<CS22) ;
+ }
+ISR(TIMER2_OVF_vect){
+OCR2A = (dutyCycle/100.0)*255;
+}
+
+void controlPwm(float linearAccelX) {
+    if (linearAccelX < -1.15) {
+        dutyCycle = 0;    // 100% brightness for very negative values
+    } else if (linearAccelX < -0.05) {
+        // Map linearAccelX from the range [-1.15, -0.05] to [0, 100] linearly
+        dutyCycle = mapFloatToRange(linearAccelX, -1.15, -0.05, 100, 0);
+    } else if (linearAccelX >= -0.05 && linearAccelX <= 0.05) {
+        dutyCycle = 100;  // 0% brightness for values near zero
+    } else if (linearAccelX > 0.05 && linearAccelX <= 1.15) {
+        // Map linearAccelX from the range [0.05, 1.15] to [0, 100] linearly
+        dutyCycle = mapFloatToRange(linearAccelX, 0.05, 1.15, 0, 100);
+    } else {
+        dutyCycle = 100;  // 0% brightness for very large positive values
+    }
+}
+
+// Function to map a float value from one range to another
+float mapFloatToRange(float x, float in_min, float in_max, float out_min, float out_max) {
+    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
+
+void controlLED(uint8_t state) {
+    if (state) {
+        // Turn on the LED
+        PORTB |= (1 << LED_PIN);
+    } else {
+        // Turn off the LED
+        PORTB &= ~(1 << LED_PIN);
+    }
 }
