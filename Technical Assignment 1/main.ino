@@ -1,173 +1,139 @@
-#include <Wire.h>
-#include <MPU6050.h>
-#include <Servo.h>
-#define LED_PIN PB5
-MPU6050 mpu;
+                    #define F_CPU 20000000
+                    
+                    #include <avr/io.h>
+                    #include <avr/interrupt.h>
+                    #include <util/delay.h>
+
+                    // Connected to P6 Connector on Board
+                    #define echoPin 2
+                    #define trigPin PB3
+
+                    // Constants 
+                    #define MAX_DISTANCE 46.0 // cm
+                    #define MIN_DISTANCE 12.0 // cm
+
+                    // Mode control
+                    int irMode = 1; // 0 = US, 1 = IR
+                    long dutyCycle = 0;
+                    float duration;
+                    float distance;
+
+        
+                    void initADC()
+                    {
+                    // Reference voltage AVcc/ARef
+                    ADMUX |= (1<<REFS0);
+                    //set prescaller to 128
+                    //Enable ADC
+                    ADCSRA |= (1<<ADPS2)|(1<<ADPS1)|(1<<ADPS0)|(1<<ADEN);
+                    }
 
 
-Servo sg90;
-int servo_pin = 6;
-// Timers
-unsigned long timer = 0;
-unsigned long printTimer = 0;
-float timeStep = 0.01; // Read data every 10 milliseconds
-unsigned long printInterval = 1000; // Print data every 1000 milliseconds (1 second)
-long dutyCycle = 0;
-// Pitch, Roll, and Yaw values
-float pitch = 0;
-float roll = 0;
-float yaw = 0;
+                    uint16_t getADC(uint8_t PIN)
+                    {
+                    ADMUX = (ADMUX & 0xF0) | (PIN & 0x0F);
+                    //single conversion mode
+                    ADCSRA |= (1<<ADSC);
+                    while( ADCSRA & (1<<ADSC) );
+                    return ADC;
+                    }
+
+                    float calcIrDistance(uint16_t pwr){
+                    float distance =(float) pwr;
+                    distance = 13363 * pow(distance, -1.15);
+                    return distance;
+                    }
+
+                    void setLedBrightness(float distanceCm) {
+                      if(distanceCm >= MAX_DISTANCE) {
+                        dutyCycle = 100;  //0% brightness
+                        PORTB |= ((1<<PB5)); // TURN L ON
+                      } else if(distanceCm <= MIN_DISTANCE) {
+                        dutyCycle = 0;  //100% brightness
+                        PORTB |= ((1<<PB5));
+                      } else {
+                        dutyCycle = map(distanceCm, MIN_DISTANCE, MAX_DISTANCE, 0, 100);
+                        PORTB &= ~((1<<PB5)); // TURN L OFF
+                      }
+                     
+                    }
+                    
+                    void initPWM(double dC)
+                    {
+                    DDRB = (1 << PORTB3); // LED BOARD
+                    // initialize TCCR2 as: fast pwm mode (p.130) --> mode 3, inverting mode
+                    TCCR2A = (1 << COM2A1) | (1 << WGM20) | (1 << WGM21);
+                    TIMSK2 = (1 << TOIE2);
+                    // Set duty cycle
+                    OCR2A = (dC/100.0)*255.0;
+                    // Divides the outputted timer clock frequency by the number of clock select bits
+                    TCCR2B |= (1<<CS21) | (1<<CS22) ;
+                    }
+                    ISR(TIMER2_OVF_vect)
+                    {
+                    OCR2A = (dutyCycle/100.0)*255;
+                    }
+                    float getUSCm()
+                    {
+                    DDRB |= (0 << PORTB5);
+                    _delay_us(2);
+                    DDRB |= (1 << PORTB5);
+                    _delay_us(10);
+                    DDRB |= (0 << PORTB5);
+                    duration =  pulseIn(echoPin, HIGH);
+                    // Calculating the distance
+                    distance = duration * 0.034 / 2;
+                    return distance;
+                    }
+                    float getUSPulseWidth()
+                    {
+                    DDRB |= (0 << PORTB5);
+                    _delay_us(2);
+                    DDRB |= (1 << PORTB5);
+                    _delay_us(10);
+                    DDRB |= (0 << PORTB5);
+                    duration = pulseIn(echoPin, HIGH);
+                    return duration;
+                    }
 
 
-//Calibrating accelerations based on trials
-float xAccCalib = -0.00;
-float yAccCalib =0.0;
-float zAccCalib = -0.06;
-float pitchCalib = -0.06;
-float rollCalib = -0.06;
-float yawCalib = -0.06;
+                    int main(void) {
+                    // LED L set to output on arduino
+                    DDRB |= (1 << PORTB5);
+                    Serial.begin(9600);
+                    // allows for external interrupt
+                    sei();
+                    initPWM(dutyCycle);
+                    initADC();
+                   
+                    if(irMode)
+                    {
+                    while (1)
+                    {
 
-//LSB sensitivity constants for full scale range
-const float MPU6050_SENS_FOR_RANGE_2 = 16384.0;
-const float MPU6050_SENS_FOR_RANGE_4 = 8192.0;
-const float MPU6050_SENS_FOR_RANGE_8 = 4096.0;
-const float MPU6050_SENS_FOR_RANGE_16 = 2048.0;
+                    Serial.print("\n\nIR ADC digital Reading: ");
+                    Serial.println(getADC(PC0));
+                    float distIR = calcIrDistance(getADC(PC0));
+                    Serial.print("IR Distance: ");
+                    Serial.print(distIR);
+                    setLedBrightness(distIR);
+                    _delay_ms(1000); //long delay to avoid spikes
+                    }
+                    }
+                    else{
+                    while (1)
+                    {
 
-float lsbSensitivity = MPU6050_SENS_FOR_RANGE_2;
-
-
-
-// Initializing the mpu function, choose the appropriate scale/ range. the options are
-    // MPU6050_SCALE_2000DPS       - 250 deg/sec => sensitivity 16.4.0
-    // MPU6050_SCALE_1000DPS       - 1000 deg/sec => sensitivity 328.0
-    // MPU6050_SCALE_500DPS        - 500 deg/sec => sensitivity 655.0
-    // MPU6050_SCALE_250DPS        - 250 deg/sec => sensitivity 131.0
-
-// Change the LSB sensitivity constants when choosing a range
-    // MPU6050_RANGE_16G             = 16g = MPU6050_SENS_FOR_RANGE_16
-    // MPU6050_RANGE_8G              = 8g  = MPU6050_SENS_FOR_RANGE_8
-    // MPU6050_RANGE_4G              = 4g  = MPU6050_SENS_FOR_RANGE_4
-    // MPU6050_RANGE_2G              = 2g  = MPU6050_SENS_FOR_RANGE_2
-
-
-void setup() 
-{
-  sg90.attach(servo_pin);
-  initLED();
-  initPWM(dutyCycle);
-  sei();
-  Serial.begin(115200);
-
-  // Initialize MPU6050
-  while(!mpu.begin(MPU6050_SCALE_2000DPS, MPU6050_RANGE_2G))
-  {
-    Serial.println("Could not find a valid MPU6050 sensor, check wiring!");
-    delay(500);
-  }
-  
-  // Calibrate gyroscope. The calibration must be at rest.
-  mpu.calibrateGyro();
-
-  // Set threshold sensitivity. Default 3.
-  mpu.setThreshold(3);
-}
-
-void loop()
-{
-  timer = millis();
-
-  // Read normalized values from gyroscope
-  Vector normGyro = mpu.readNormalizeGyro();
-
-  // Read normalized values from accelerometer
-  Vector normAccel = mpu.readRawAccel();
-
-  // Calculate Pitch, Roll, and Yaw deg/s * s = deg
-  pitch = pitch + normGyro.YAxis * timeStep;
-  roll = roll + normGyro.XAxis * timeStep;
-  yaw = yaw + normGyro.ZAxis * timeStep;
-  if(abs(yaw) <=70.0 ){
-  controlLED(0);
-  int servoMotion = constrain(yaw + 90, 0, 180);
-  sg90.write(servoMotion);}
-  else{
-    controlLED(1);
-  }
-  // Calculate linear accelerations
-  float linearAccelX = normAccel.XAxis /lsbSensitivity +xAccCalib;
-  float linearAccelY = normAccel.YAxis /lsbSensitivity + yAccCalib;
-  float linearAccelZ = normAccel.ZAxis /lsbSensitivity +zAccCalib; 
-  controlPwm(linearAccelX);
-
-  // Check if it's time to print the values (once every second)
-  if (millis() - printTimer >= printInterval)
-  {
-    printTimer = millis(); // Reset the print timer
-
-    // Output the calculated values
-    Serial.print(" Pitch = ");
-    Serial.print(pitch);
-    Serial.print(" Roll = ");
-    Serial.print(roll);  
-    Serial.print(" Yaw = ");
-    Serial.println(yaw);
-    Serial.print(" Linear Accel X = ");
-    Serial.print(linearAccelX);
-    Serial.print(" Linear Accel Y = ");
-    Serial.print(linearAccelY);
-    Serial.print(" Linear Accel Z = ");
-    Serial.println(linearAccelZ);
-  }
-
-  // Wait to complete the full timeStep period
-  delay((timeStep*1000) - (millis() - timer));
-}
-void initLED() {
-    // Set LED pin as output
-    DDRB |= (1 << LED_PIN);
-}
-
-void initPWM(double dC){
-  DDRB = (1 << PORTB3); // LED BOARD
-  // initialize TCCR2 as: fast pwm mode (p.130) --> mode 3, inverting mode
-  TCCR2A = (1 << COM2A1) | (1 << WGM20) | (1 << WGM21);
-  TIMSK2 = (1 << TOIE2);
-  // Set duty cycle
-  OCR2A = (dC/100.0)*255.0;
-  // Divides the outputted timer clock frequency by the number of clock select bits
-  TCCR2B |= (1<<CS21) | (1<<CS22) ;
- }
-ISR(TIMER2_OVF_vect){
-OCR2A = (dutyCycle/100.0)*255;
-}
-
-void controlPwm(float linearAccelX) {
-    if (linearAccelX < -1.15) {
-        dutyCycle = 0;    // 100% brightness for very negative values
-    } else if (linearAccelX < -0.05) {
-        // Map linearAccelX from the range [-1.15, -0.05] to [0, 100] linearly
-        dutyCycle = mapFloatToRange(linearAccelX, -1.15, -0.05, 100, 0);
-    } else if (linearAccelX >= -0.05 && linearAccelX <= 0.05) {
-        dutyCycle = 100;  // 0% brightness for values near zero
-    } else if (linearAccelX > 0.05 && linearAccelX <= 1.15) {
-        // Map linearAccelX from the range [0.05, 1.15] to [0, 100] linearly
-        dutyCycle = mapFloatToRange(linearAccelX, 0.05, 1.15, 0, 100);
-    } else {
-        dutyCycle = 100;  // 0% brightness for very large positive values
-    }
-}
-
-// Function to map a float value from one range to another
-float mapFloatToRange(float x, float in_min, float in_max, float out_min, float out_max) {
-    return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
-}
-
-void controlLED(uint8_t state) {
-    if (state) {
-        // Turn on the LED
-        PORTB |= (1 << LED_PIN);
-    } else {
-        // Turn off the LED
-        PORTB &= ~(1 << LED_PIN);
-    }
-}
+                    Serial.print("\nUS Distance Reading: ");
+                    float distanceLoop = getUSCm();
+                    Serial.print(distanceLoop);
+                    Serial.print(" cm");
+                    Serial.print("\nUS Pulse Width : ");
+                    long durationLoop = getUSPulseWidth();
+                    Serial.print(durationLoop);
+                    Serial.println(" us");
+                    setLedBrightness(distanceLoop);
+                    _delay_ms(1000); //long delay to avoid spikes
+                    }
+                    }
+                    }
