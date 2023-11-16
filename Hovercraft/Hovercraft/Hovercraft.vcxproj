@@ -132,10 +132,14 @@
   <ItemGroup>
     <ClCompile Include="lift.cpp" />
     <ClCompile Include="sensors.cpp" />
+    <ClCompile Include="timing.cpp" />
+    <ClCompile Include="TWI.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lift.h" />
     <ClInclude Include="sensors.h" />
+    <ClInclude Include="timing.h" />
+    <ClInclude Include="TWI.h" />
   </ItemGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

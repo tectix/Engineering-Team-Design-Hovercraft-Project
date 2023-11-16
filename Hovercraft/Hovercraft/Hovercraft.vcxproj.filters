@@ -24,12 +24,24 @@
     <ClCompile Include="sensors.cpp">
       <Filter>Source Files</Filter>
     </ClCompile>
+    <ClCompile Include="TWI.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
+    <ClCompile Include="timing.cpp">
+      <Filter>Source Files</Filter>
+    </ClCompile>
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="lift.h">
       <Filter>Header Files</Filter>
     </ClInclude>
     <ClInclude Include="sensors.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="TWI.h">
+      <Filter>Header Files</Filter>
+    </ClInclude>
+    <ClInclude Include="timing.h">
       <Filter>Header Files</Filter>
     </ClInclude>
   </ItemGroup>

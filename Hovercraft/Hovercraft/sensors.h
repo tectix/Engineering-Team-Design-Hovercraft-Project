@@ -25,12 +25,6 @@ typedef struct {
 } USSensorData;
 
 
-typedef struct {
-	uint8_t adcMux;
-	uint16_t adcResult;
-	uint8_t semaphore;
-} ADCData;
-
 void initIMU();
 void initUSS(USSensorData* frontSensorData);
 void calibrateIMU();
