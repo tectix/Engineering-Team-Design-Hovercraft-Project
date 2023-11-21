@@ -1,4 +1,4 @@
-<?xml version="1.0" encoding="utf-8"?>
+﻿<?xml version="1.0" encoding="utf-8"?>
 <Project DefaultTargets="Build" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
   <ItemGroup Label="ProjectConfigurations">
     <ProjectConfiguration Include="Debug|Win32">
@@ -130,12 +130,14 @@
     <None Include="Hovercraft.ino" />
   </ItemGroup>
   <ItemGroup>
+    <ClCompile Include="imu.cpp" />
     <ClCompile Include="lift.cpp" />
     <ClCompile Include="sensors.cpp" />
     <ClCompile Include="timing.cpp" />
     <ClCompile Include="TWI.cpp" />
   </ItemGroup>
   <ItemGroup>
+    <ClInclude Include="imu.h" />
     <ClInclude Include="lift.h" />
     <ClInclude Include="sensors.h" />
     <ClInclude Include="timing.h" />
