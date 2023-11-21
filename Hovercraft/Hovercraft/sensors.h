@@ -30,13 +30,11 @@ extern MPU6050 mpu;
 
 
 /*all connections
-* P14 left IR sensor
-* P16 right IR sensor
 * P2 servo motor
 * P13 front US Sensor
-* P11 lift fan
-* P3 thrust fan
-* P17 IMU
+* P18 lift fan
+* P17 thrust fan
+* P7 IMU
 */
 
 

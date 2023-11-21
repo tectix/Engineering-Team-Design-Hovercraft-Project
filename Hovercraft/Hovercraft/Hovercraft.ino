@@ -4,7 +4,7 @@
 #include "NewPing.h"
 #include "sensors.h"
 #include "fans.h"
-
+ 
 
 #define TRIGGER_PIN  13
 #define ECHO_PIN     3
@@ -23,18 +23,18 @@ float yawCalib = -0.06;
 NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 Servo serv;
 float duration, distance;
-
+ 
 int iterations = 3;
-
+ 
 void setup() {
-    Serial.begin(9600);
-    serv.attach(SERVO_PIN);
-    initIMU();
-    //initThrustFan();
-    //startThrustFan();
-    servoMiddle();
+  Serial.begin (9600);
+  serv.attach(SERVO_PIN);
+  initIMU();
+  //initThrustFan();
+  //startThrustFan();
+  servoMiddle();
 }
-
+ 
 void loop() {
 
     Vector normGyro = mpu.readNormalizeGyro();
@@ -46,50 +46,50 @@ void loop() {
 
     Serial.print(" Yaw = ");
     Serial.println(yaw);
-    // duration = sonar.ping_median(iterations);
+  // duration = sonar.ping_median(iterations);
+  
+  // // Determine distance from duration
+  // // Use 343 metres per second as speed of sound
+  
+  distance = calculateDistance();
+  
+  // Send results to Serial Monitor
+  Serial.print("Distance = ");
+  if (distance >= 400 || distance <= 2) {
+    Serial.println("Out of range");
+  }
+  else {
+    Serial.print(distance);
+    Serial.println(" cm");
 
-    // // Determine distance from duration
-    // // Use 343 metres per second as speed of sound
-
-    distance = calculateDistance();
-
-    // Send results to Serial Monitor
-    Serial.print("Distance = ");
-    if (distance >= 400 || distance <= 2) {
-        Serial.println("Out of range");
+    if(distance < 12){
+    Serial.print("WARNING COLLISION");
+      
+      delay(5000);
     }
-    else {
-        Serial.print(distance);
-        Serial.println(" cm");
-
-        if (distance < 12) {
-            Serial.print("WARNING COLLISION");
-
-            delay(5000);
-        }
-        delay(10);
-    }
-    startThrustFan();
     delay(10);
+  }
+  startThrustFan();
+  delay(10);
 }
 
 
-float calculateDistance() {
-    duration = sonar.ping_median(iterations);
-    return ((duration / 2) * 0.0343);
+ float calculateDistance(){
+   duration = sonar.ping_median(iterations);
+   return ( (duration / 2) * 0.0343);
+ }
+
+
+
+void servoLeft(){
+serv.write(0);
 }
 
-
-
-void servoLeft() {
-    serv.write(0);
+void servoRight(){
+serv.write(185);
 }
 
-void servoRight() {
-    serv.write(185);
-}
-
-void servoMiddle() {
-    serv.write(90);
+void servoMiddle(){
+  serv.write(90);
 }
 
