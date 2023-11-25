@@ -14,8 +14,8 @@
 float pitch = 0;
 float roll = 0;
 float yaw = 0;
+float prevyaw = 0;
 unsigned long timer = 0;
-unsigned long printTimer = 0;
 float timeStep = 0.1; // Read data every 10 milliseconds
 
 float yawCalib = -0.06;
@@ -26,51 +26,116 @@ float duration, distance;
  
 int iterations = 3;
  
+unsigned long previousMillis = 0; 
+const long servoInterval = 500; // Time for the servo to turn
+
+float distanceLeft = 0;
+float distanceRight = 0;
+enum State {
+    WAITING,
+    TURNING_LEFT,
+    MEASURING_LEFT,
+    TURNING_RIGHT,
+    MEASURING_RIGHT,
+    DECIDING_DIRECTION
+};
+State currentState = WAITING;
+
 void setup() {
   Serial.begin (9600);
   serv.attach(SERVO_PIN);
   initIMU();
-  //initThrustFan();
-  //startThrustFan();
+  initThrustFan();
+  startThrustFan();
   servoMiddle();
 }
  
 void loop() {
 
+    unsigned long currentMillis = millis();
     Vector normGyro = mpu.readNormalizeGyro();
 
     // Read normalized values from accelerometer
-
     yaw = yaw + normGyro.ZAxis * timeStep;
 
 
-    Serial.print(" Yaw = ");
-    Serial.println(yaw);
-  // duration = sonar.ping_median(iterations);
-  
-  // // Determine distance from duration
-  // // Use 343 metres per second as speed of sound
-  
-  distance = calculateDistance();
+    Serial.print(" Yaw = "); Serial.println(yaw);
+    distance = calculateDistance();
   
   // Send results to Serial Monitor
   Serial.print("Distance = ");
-  if (distance >= 400 || distance <= 2) {
-    Serial.println("Out of range");
-  }
-  else {
     Serial.print(distance);
     Serial.println(" cm");
 
-    if(distance < 12){
-    Serial.print("WARNING COLLISION");
-      
-      delay(5000);
+     if (distance < 12 && currentState == WAITING) {
+        // Stop hovercraft
+        stopThrustFan();
+        stopLiftFan();
+
+        //Turn left
+        currentState = TURNING_LEFT;
+        currentMillis = millis();
+        servoLeft();
+        
+
+        //Measure left
+        if(currentMillis)
+
+
+
+
+
+        currentState = TURNING_LEFT;
+        
+        previousMillis = currentMillis;
     }
-    delay(10);
-  }
-  startThrustFan();
-  delay(10);
+
+    switch (currentState) {
+        case TURNING_LEFT:
+            if (currentMillis - previousMillis >= servoInterval) {
+                currentState = MEASURING_LEFT;
+                previousMillis = currentMillis;
+            }
+            break;
+
+        case MEASURING_LEFT:
+            if (currentMillis - previousMillis >= servoInterval) {
+                distanceLeft = calculateDistance();
+                currentState = TURNING_RIGHT;
+                servoRight();
+                previousMillis = currentMillis;
+            }
+            break;
+
+        case TURNING_RIGHT:
+            if (currentMillis - previousMillis >= servoInterval) {
+                currentState = MEASURING_RIGHT;
+                previousMillis = currentMillis;
+            }
+            break;
+
+        case MEASURING_RIGHT:
+            if (currentMillis - previousMillis >= servoInterval) {
+                distanceRight = calculateDistance();
+                currentState = DECIDING_DIRECTION;
+            }
+            break;
+
+        case DECIDING_DIRECTION:
+            if (distanceLeft > distanceRight) {
+                servoLeft();
+            } else {
+                servoRight();
+            }
+            currentState = WAITING;
+            break;
+
+        default:
+            break;
+    }
+
+
+
 }
 
 
@@ -91,5 +156,11 @@ serv.write(185);
 
 void servoMiddle(){
   serv.write(90);
+}
+
+
+void resetGyro() {
+    yaw = 0;
+    mpu.calibrateGyro();
 }
 
