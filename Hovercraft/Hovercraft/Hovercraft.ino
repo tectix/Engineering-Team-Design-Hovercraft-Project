@@ -10,11 +10,13 @@
 #define ECHO_PIN     3
 #define MAX_DISTANCE 400
 #define SERVO_PIN 6
+#define FORWARD_TIME 6000 // Time in milliseconds to move forward 
+#define TURN_TIME 2000 // Estimated time to complete a U-turn 
+#define OBSTACLE_DISTANCE 15 // Distance in cm to detect an obstacle
 
-float pitch = 0;
-float roll = 0;
-float yaw = 0;
-float prevyaw = 0;
+
+float currentYaw  = 0;
+float targetYaw = 0;
 unsigned long timer = 0;
 float timeStep = 0.1; // Read data every 10 milliseconds
 
@@ -28,9 +30,13 @@ int iterations = 3;
  
 unsigned long previousMillis = 0; 
 const long servoInterval = 500; // Time for the servo to turn
-
 float distanceLeft = 0;
 float distanceRight = 0;
+
+
+
+
+//Competition states
 enum State {
     WAITING,
     TURNING_LEFT,
@@ -41,10 +47,24 @@ enum State {
 };
 State currentState = WAITING;
 
+//Demo states
+// enum State {
+//     MOVING_FORWARD,
+//     TURNING,
+//     COMPLETED
+// };
+// State currentState = MOVING_FORWARD;
+
+
+
+
+
 void setup() {
   Serial.begin (9600);
   serv.attach(SERVO_PIN);
   initIMU();
+  initLiftFan();
+  startLiftFan();
   initThrustFan();
   startThrustFan();
   servoMiddle();
@@ -54,39 +74,22 @@ void loop() {
 
     unsigned long currentMillis = millis();
     Vector normGyro = mpu.readNormalizeGyro();
-
-    // Read normalized values from accelerometer
-    yaw = yaw + normGyro.ZAxis * timeStep;
-
-
-    Serial.print(" Yaw = "); Serial.println(yaw);
+    currentYaw  = currentYaw  + normGyro.ZAxis * timeStep;
+    Serial.print(" Yaw = "); Serial.println(currentYaw );
     distance = calculateDistance();
-  
-  // Send results to Serial Monitor
-  Serial.print("Distance = ");
+    Serial.print("Distance = ");
     Serial.print(distance);
     Serial.println(" cm");
 
-     if (distance < 12 && currentState == WAITING) {
+
+     if (distance < OBSTACLE_DISTANCE && currentState == WAITING) {
         // Stop hovercraft
         stopThrustFan();
         stopLiftFan();
 
-        //Turn left
+          // Turn left
         currentState = TURNING_LEFT;
-        currentMillis = millis();
         servoLeft();
-        
-
-        //Measure left
-        if(currentMillis)
-
-
-
-
-
-        currentState = TURNING_LEFT;
-        
         previousMillis = currentMillis;
     }
 
@@ -127,12 +130,57 @@ void loop() {
             } else {
                 servoRight();
             }
+            startThrustFan(); // Restart hovercraft movement
             currentState = WAITING;
             break;
 
         default:
             break;
     }
+
+
+
+
+
+
+    //SWitch logic for the demo
+    //  switch (currentState) {
+    //     case MOVING_FORWARD:
+    //         if (currentTime - startTime >= FORWARD_TIME) {
+    //             stopThrustFan();
+    //             currentState = TURNING;
+    //             servoRight(); // Initiate U-turn to the right
+    //             startThrustFan();
+    //             startTime = currentTime;
+    //         }
+    //         break;
+
+    //     case TURNING:
+    //         if (currentTime - startTime > TURN_TIME) {
+    //             stopThrustFan();
+    //             currentState = MOVING_BACK;
+    //             servoMiddle(); // Reset servo to move straight back
+    //             startThrustFan();
+    //             startTime = currentTime;
+    //         }
+    //         break;
+
+    //     case MOVING_BACK:
+    //         if (distance < OBSTACLE_DISTANCE) {
+    //             stopThrustFan();
+    //             currentState = STOPPING;
+    //         }
+    //         break;
+
+    //     case STOPPING:
+    //         // Hovercraft has stopped due to an obstacle
+    //         currentState = COMPLETED;
+    //         break;
+
+    //     case COMPLETED:
+    //
+    //         break;
+    // }
 
 
 
@@ -160,7 +208,35 @@ void servoMiddle(){
 
 
 void resetGyro() {
-    yaw = 0;
+    currentYaw  = 0;
     mpu.calibrateGyro();
 }
+
+
+
+//IMU verification inside the decision tree
+  // switch (currentState) {
+  //       case TURNING_LEFT:
+  //           if (!isTurning) {
+  //               targetYaw = currentYaw - 90; // Adjust for 90 degrees turn
+  //               isTurning = true;
+  //           }
+  //           if (currentYaw <= targetYaw) {
+  //               currentState = MEASURING_LEFT;
+  //               isTurning = false;
+  //               previousMillis = currentMillis;
+  //           }
+  //           break;
+
+  //       case TURNING_RIGHT:
+  //           if (!isTurning) {
+  //               targetYaw = currentYaw + 90; // Adjust for 90 degrees turn
+  //               isTurning = true;
+  //           }
+  //           if (currentYaw >= targetYaw) {
+  //               currentState = MEASURING_RIGHT;
+  //               isTurning = false;
+  //               previousMillis = currentMillis;
+  //           }
+  //           break;
 
