@@ -39,6 +39,9 @@ const long servoInterval = 500; // Time for the servo to turn
 float distanceLeft = 0;
 float distanceRight = 0;
 
+float mapFloat(float x, float in_min, float in_max, float out_min, float out_max) {
+  return (x - in_min) * (out_max - out_min) / (in_max - in_min) + out_min;
+}
 
 
 
@@ -61,6 +64,7 @@ State currentState = STARTING;
 int iteration = 0;
 unsigned long lastLoopTime = 0;
 unsigned long currentLoopTime = 0;
+
 
 float prevDistance;
 void setup() {
@@ -96,6 +100,7 @@ void loop() {
 
     Vector normGyro = mpu.readNormalizeGyro();
     currentYaw  = currentYaw  + normGyro.ZAxis * timeStep;
+
     Serial.print(" Yaw = "); Serial.println(currentYaw );
 
      distance = calculateDistance();
@@ -122,9 +127,11 @@ void loop() {
 
 
 
-    if (currentYaw > idealYaw && !isTurning && currentState == WAITING) {
-      servoCustom( serv.read() -(currentYaw-idealYaw));
-      delay(150);
+    if ((currentYaw > idealYaw||currentYaw < idealYaw)   && !isTurning && currentState == WAITING) {
+     // servoCustom( serv.read() -(currentYaw-idealYaw));
+      float servoAngle=map(currentYaw,-90,90,0.0,180.0);
+      serv.write(servoAngle);
+    //  delay(150);
      // servoMiddle();
 
     }
@@ -196,12 +203,12 @@ void loop() {
              
             if (distanceLeft > distanceRight) {
               targetYaw = calculateTargetYaw(90);
-                // servoCustom(45);
-                servoLeft();
+                 servoCustom(45);
+               // servoLeft();
             } else {
                 targetYaw = calculateTargetYaw(-90);
-                // servoCustom(135);
-                 servoRight();
+                 servoCustom(135);
+                 //servoRight();
             }
             startLiftFan();
             startThrustFan();
@@ -213,7 +220,7 @@ void loop() {
 
           case DONE_DECIDING:
           if (currentMillis - previousMillis >= TURN_TIME+2000 ) {
-        // stopThrustFan();
+         stopThrustFan();
           
           //delay(50);
                          //  recalibrateGyro();
