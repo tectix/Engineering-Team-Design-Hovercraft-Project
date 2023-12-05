@@ -4,7 +4,7 @@
 #include "NewPing.h"
 #include "sensors.h"
 #include "fans.h"
- 
+
 
 #define TRIGGER_PIN  13
 #define ECHO_PIN     3
@@ -30,7 +30,7 @@ float yawCalib = -0.06;
  NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 Servo serv;
 float duration;
-float distance =40 ;
+float distance =50 ;
  
 int iterations =2;
  
@@ -38,6 +38,8 @@ unsigned long previousMillis = 0;
 const long servoInterval = 500; // Time for the servo to turn
 float distanceLeft = 0;
 float distanceRight = 0;
+
+
 
 
 
@@ -68,12 +70,15 @@ void setup() {
   initThrustFan();
  //pinMode(TRIGGER_PIN, OUTPUT); // Sets the trigPin as an Output
 // pinMode(ECHO_PIN, INPUT); // Sets the echoPin as an Input
-  delay(150);
+  
    startLiftFan();
   Serial.begin (9600);
   serv.attach(SERVO_PIN);
  startThrustFan();
   servoMiddle();
+  delay(150);
+   
+ 
 }
  
 void loop() {
@@ -81,6 +86,7 @@ void loop() {
         iteration++;
         currentState = WAITING;
         };
+        
 
     unsigned long currentMillis = millis();
     unsigned long currentLoopTime = millis();
@@ -93,28 +99,33 @@ void loop() {
     Serial.print(" Yaw = "); Serial.println(currentYaw );
 
      distance = calculateDistance();
-   // delay(100);
+  //  delay(100);
     Serial.print("Distance = ");
     Serial.print(distance);
     Serial.println(" cm");
-
        
-     if (distance != 0.0 && distance < OBSTACLE_DISTANCE && currentState == WAITING  &&!isTurning) {
+     if ( distance != 0.00 && distance < OBSTACLE_DISTANCE && currentState == WAITING  &&!isTurning) {
 
         // Stop hovercraft
-       //stopMovement();
+      stopThrustFan();
+      stopLiftFan();
+     
 
         //   // Turn left
-      //  currentState = TURNING_LEFT;
+        currentState = TURNING_LEFT;
         
-      //  servoLeft();
+        servoLeft();
          previousMillis = currentMillis;
     }
 
+      
 
 
-    if (abs(currentYaw-idealYaw) > YAW_TOLERANCE && !isTurning && currentState == WAITING) {
-      currentState= ADJUSTING_ANGLE;
+
+    if (currentYaw > idealYaw && !isTurning && currentState == WAITING) {
+      servoCustom( serv.read() -(currentYaw-idealYaw));
+      delay(150);
+     // servoMiddle();
 
     }
 
@@ -125,29 +136,28 @@ void loop() {
 
     switch (currentState) {
 
-       case ADJUSTING_ANGLE:
-            isTurning =true;
-            float yawDifference = currentYaw - idealYaw ;
-          adjustServoBasedOnYaw(yawDifference); 
-          Serial.println("SENT NEW DATA -------------------------------");
-          targetYaw = idealYaw;
-          currentState = DONE_ADJUSTING;
+      //  case ADJUSTING_ANGLE:
+      //       isTurning =true;
+      //       float yawDifference = currentYaw - idealYaw ;
+      //     adjustServoBasedOnYaw(yawDifference); 
+      //     Serial.println("SENT NEW DATA -------------------------------");
+      //     targetYaw = idealYaw;
+      //     currentState = DONE_ADJUSTING;
           
-            break;
+      //       break;
 
-        case DONE_ADJUSTING:
-         if (abs(currentYaw- idealYaw) <= YAW_TOLERANCE) {
+      //   case DONE_ADJUSTING:
+      //    if (abs(currentYaw- idealYaw) <= YAW_TOLERANCE) {
 
 
-          Serial.println("HASS REACHED TARGET YAW -------------------------------");
-            //idealYaw = currentYaw;
-                  servoMiddle();
-                  delay(50);
-                   isTurning = false;
-                  currentState = WAITING;
+      //     Serial.println("HASS REACHED TARGET YAW -------------------------------");
+      //             servoMiddle();
+      //             delay(50);
+      //              isTurning = false;
+      //             currentState = WAITING;
                  
-              }
-              break;
+      //         }
+      //         break;
 
 
 
@@ -185,10 +195,12 @@ void loop() {
         case DECIDING_DIRECTION:
              
             if (distanceLeft > distanceRight) {
-              targetYaw = calculateTargetYaw(-90);
-                 servoLeft();
+              targetYaw = calculateTargetYaw(90);
+                // servoCustom(45);
+                servoLeft();
             } else {
-                targetYaw = calculateTargetYaw(90);
+                targetYaw = calculateTargetYaw(-90);
+                // servoCustom(135);
                  servoRight();
             }
             startLiftFan();
@@ -200,37 +212,63 @@ void loop() {
             break;
 
           case DONE_DECIDING:
-          // if (currentMillis - previousMillis >= TURN_TIME+2500 ) {
-         // Serial.println("Reached correct yaw");
-         // stopThrustFan();
+          if (currentMillis - previousMillis >= TURN_TIME+2000 ) {
+        // stopThrustFan();
           
-          // delay(50);
-          //                //  recalibrateGyro();
-          //       servoMiddle();
-          //       currentState = YAW_ADJUSTED;
-          //       previousMillis = currentMillis;
-          //       isTurning = false;
-          //   }
-          //   break;
-          if (hasReachedTargetYaw()) {
-            Serial.println("Reached correct yaw");
-            idealYaw = currentYaw;
-            stopThrustFan();
-            stopLiftFan();
-            delay(50);
-                          //  recalibrateGyro();
-                  servoMiddle();
-                  currentState = YAW_ADJUSTED;
-                  previousMillis = currentMillis;
-                  isTurning = false;
-              }
-              break;
+          //delay(50);
+                         //  recalibrateGyro();
+                servoMiddle();
+                currentState = YAW_ADJUSTED;
+                previousMillis = currentMillis;
+                isTurning = false;
+            }
+            break;
+          // if (hasReachedTargetYaw()) {
+          //   Serial.println("Reached correct yaw");
+          //   idealYaw = currentYaw;
+          //   stopThrustFan();
+          //   stopLiftFan();
+          //   delay(50);
+          //                 //  recalibrateGyro();
+          //         servoMiddle();
+          //         currentState = YAW_ADJUSTED;
+          //         previousMillis = currentMillis;
+          //         isTurning = false;
+          //     }
+          //     break;
         
           case YAW_ADJUSTED:
             startLiftFan();
             startThrustFan();
             currentState= WAITING;
             break;
+
+
+
+             case ADJUSTING_ANGLE:
+            isTurning =true;
+            float yawDifference = currentYaw - idealYaw ;
+          adjustServoBasedOnYaw(yawDifference); 
+          Serial.println("SENT NEW DATA -------------------------------");
+          targetYaw = idealYaw;
+          currentState = DONE_ADJUSTING;
+          //currentState = WAITING;
+
+            break;
+
+
+              case DONE_ADJUSTING:
+               Serial.println("CURRENT STATE IS DONE ADJUSTING ANGLE");
+            //  delay(150);
+               Serial.println("HASS REACHED TARGET YAW -------------------------------");
+                  servoMiddle();
+               //   delay(50);
+                   isTurning = false;
+                  currentState = WAITING;
+                 
+              
+              break;
+
        
         default:
             break;
@@ -334,8 +372,8 @@ void recalibrateGyro() {
 
 void adjustServoBasedOnYaw(float yawDiff) {
     int adjustment = (yawDiff > 0) ? -1 : 1;
-    servoLeft();
-    //servoCustom(serv.read() + adjustment*yawDiff);
+    //servoLeft();
+    servoCustom(serv.read() + adjustment*yawDiff);
 }
 
 float normalizeYaw(float yaw) {
